@@ -1,0 +1,24 @@
+*.zip
+*.rar
+*.7z
+*.tar.gz
+
+# Credenciais e Variaveis de Ambiente
+.env
+*.pem
+*.pkcs12
+*.key
+
+# Pastas de Dependencias
+node_modules/
+.venv/
+venv/
+env/
+
+# Arquivos do Sistema Operacional
+.DS_Store
+Thumbs.db
+
+# Logs de erro e cache
+*.log
+.eslintcache

@@ -51,3 +51,4 @@ Use um divisor resistivo no pino ADC (GPIO8) para medir a tensão da bateria e e
 
 - Evite luz solar direta na lente.
 - Mantenha o dispositivo em local seco e ventilado.
+

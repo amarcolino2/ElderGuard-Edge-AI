@@ -1,4 +1,4 @@
-# Sistema de monitoramento assistivo para idosos usando Edge AI e TinyML em ESP32-S3 Sense TESTE
+# Sistema de monitoramento assistivo para idosos usando Edge AI e TinyML em ESP32-S3 Sense
 
 Aviso: Este projeto e um prototipo tecnologico/open source para estudo e experimentacao. Nao e um dispositivo medico certificado e nao deve ser utilizado como unico meio de monitoramento de saude ou seguranca.
 

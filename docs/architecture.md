@@ -1,56 +1,65 @@
 # Arquitetura do ElderGuard Edge AI
 
-## Visão Geral de Alto Nível
+## Visao Geral
 
-O sistema é composto por:
+O sistema e composto por:
 
-1. **Dispositivo de borda** (ESP32-S3 Sense) com câmera integrada
-2. **Modelo TinyML** (TensorFlow Lite Micro) rodando localmente
-3. **Máquina de estados** no firmware para interpretação temporal
-4. **Telegram Bot** para notificações
-5. **Serviço de monitoramento** (Better Stack/UptimeRobot) para heartbeat
+1. Dispositivo de borda (Seeed XIAO ESP32S3 Sense) com camera OV2640.
+2. Classificador em dois modos: fake (padrao) ou pipeline real (embutido).
+3. Maquina de estados para inferencia temporal de eventos.
+4. Notificacao por Telegram.
+5. Heartbeat HTTP para monitoramento externo.
+6. Configuracao persistente em SPIFFS (`/config.json`).
 
 ## Fluxo de Dados
 
-1. A câmera captura uma imagem a cada `X` segundos (configurável).
-2. A imagem é redimensionada para o formato esperado pelo modelo (ex: 96x96 RGB).
-3. O modelo classifica a imagem em uma das 5 classes.
-4. A classe é passada para a máquina de estados que mantém um histórico e aplica regras temporais.
-5. Quando um evento crítico é detectado (queda, imobilidade, etc.), o firmware:
-   - Captura uma imagem de alta resolução
-   - Envia uma mensagem com a imagem via Telegram
-6. Simultaneamente, a cada 1 minuto, o firmware envia um heartbeat para o serviço de monitoramento.
+1. O loop principal captura um frame em QVGA para classificacao.
+2. O classificador retorna um `VisualState` (`lying`, `sitting`, `standing`, `on_floor`, `empty_bed` ou `unknown`).
+3. A maquina de estados aplica regras temporais e define evento critico quando necessario.
+4. Em evento critico, o firmware opcionalmente captura foto em maior resolucao para enviar via Telegram.
+5. Em paralelo:
+   - envia heartbeat periodico com `uptime`, `rssi` e `version`
+   - executa checagem OTA periodica.
 
-## Máquina de Estados (Simplificada)
+## Modos de Classificacao
 
-Estado atual: [classe da imagem]
-Histórico: últimas N classificações
-Temporizadores: tempo em cada estado
+- **Modo fake (padrao)**: simula mudancas de estado para testes de fluxo.
+- **Modo real**: ponto de entrada preparado para usar `model.tflite.h` com pipeline TinyML real.
 
-Regras:
+Chaveamento via `firmware/src/config.h`:
 
-lying + sitting + standing → tentativa de levantar
+- `USE_FAKE_CLASSIFIER`
+- `USE_REAL_INFERENCE_PIPELINE`
 
-standing + on_floor (dentro de 2s) → queda
+## Maquina de Estados (Resumo)
 
-on_floor por > 30s → imobilidade após queda
+Regras principais implementadas:
 
-empty_bed por > 5min → saiu da cama
+- `standing -> on_floor` em intervalo curto: alerta de possivel queda.
+- `on_floor` por mais de 30s: alerta de imobilidade.
+- sequencia `lying -> sitting -> standing`: tentativa de levantar.
+- `empty_bed` por periodo longo: pessoa fora da cama.
 
-tentativas repetidas de levantar (3x em 1min) → alerta de dificuldade
+## Configuracao e Persistencia
 
+`config_store` carrega/salva em SPIFFS:
 
-## Comunicação
+- `wifi_ssid`
+- `wifi_password`
+- `bot_token`
+- `chat_id`
+- `heartbeat_url`
+- `ota_url`
 
-- **Wi-Fi** para acesso à internet
-- **HTTPS** para Telegram API (envio de mensagens e fotos)
-- **HTTP GET** para heartbeat (Better Stack)
+Se `config.json` nao existir ou estiver invalido, defaults de `config.h` sao gravados automaticamente.
 
-## Segurança
+## Comunicacao
 
-- As credenciais (Wi-Fi, Token, Chat ID) são armazenadas em SPIFFS ou no código (para protótipo).
-- Recomenda-se criptografar as credenciais em produção.
+- Wi-Fi para conectividade.
+- HTTPS para Telegram API.
+- HTTP GET para heartbeat.
+- HTTP para OTA (`HTTPUpdate.h`).
 
 ## Escalabilidade
 
-O projeto é monodispositivo, mas pode ser replicado para vários cômodos, cada um com seu próprio bot Telegram e heartbeat.
+Projeto atual e monodispositivo. Pode ser expandido para multiplos comodos e sensores externos via `onExternalEvent`.

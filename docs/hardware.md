@@ -1,54 +1,63 @@
 # Hardware - Seeed Studio XIAO ESP32S3 Sense
 
-## Especificações
+## Especificacoes
 
-- **SoC**: ESP32-S3 (Xtensa LX7 dual-core, 240MHz)
-- **Memória**: 512KB SRAM, 8MB PSRAM, 16MB Flash
-- **Câmera**: OV2640 (2MP), interface DVP
-- **Conectividade**: Wi-Fi 802.11 b/g/n, Bluetooth 5.0
-- **GPIOs**: 11 pinos (incluindo I2C, SPI, UART, ADC)
-- **Alimentação**: 5V via USB-C ou bateria Li-Po (conector JST)
+- SoC: ESP32-S3 (dual-core, ate 240MHz)
+- Memoria: SRAM + PSRAM (conforme variante da placa)
+- Camera: OV2640 integrada
+- Conectividade: Wi-Fi 2.4GHz
+- Alimentacao: USB-C 5V (recomendado para prototipo)
 
-## Pinagem da Câmera (já integrada)
+## Pinagem de Camera usada no firmware
 
-A câmera OV2640 é conectada internamente aos seguintes pinos:
+A configuracao atual em `firmware/src/camera_wrapper.cpp` usa:
 
-| Sinal | Pino ESP32 |
-|-------|------------|
-| D0..D7 | GPIO4, GPIO5, GPIO6, GPIO7, GPIO15, GPIO16, GPIO17, GPIO18 |
-| VSYNC | GPIO14 |
-| HREF  | GPIO27 |
-| PCLK  | GPIO13 |
-| XCLK  | GPIO10 |
-| SIOD  | GPIO21 |
-| SIOC  | GPIO22 |
-| RESET | GPIO9 |
-| PWDN  | -1 (não usado) |
+| Sinal | GPIO |
+|-------|------|
+| XCLK | 10 |
+| SIOD | 40 |
+| SIOC | 39 |
+| D0 (Y2) | 15 |
+| D1 (Y3) | 17 |
+| D2 (Y4) | 18 |
+| D3 (Y5) | 16 |
+| D4 (Y6) | 14 |
+| D5 (Y7) | 12 |
+| D6 (Y8) | 11 |
+| D7 (Y9) | 48 |
+| VSYNC | 38 |
+| HREF | 47 |
+| PCLK | 13 |
+| RESET | -1 |
+| PWDN | -1 |
 
-## Esquema de Alimentação
+Observacao: se sua revisao da placa diferir, ajuste esses valores no wrapper.
 
-### Opção 1: USB-C 5V (recomendada)
-Conecte o cabo USB-C a uma fonte de 5V/2A. O ESP32 consome ~200mA em operação normal.
+## Parametros de camera adotados
 
-### Opção 2: Power Bank
-Utilize um power bank com saída USB-A para USB-C. Verifique se suporta corrente contínua.
+- `pixel_format = PIXFORMAT_JPEG`
+- `frame_size = FRAMESIZE_QVGA` (captura de inferencia)
+- `fb_count = 2` com PSRAM, senao `1`
+- `grab_mode = CAMERA_GRAB_WHEN_EMPTY`
+- retry de captura (ate 3 tentativas)
 
-### Opção 3: Bateria 18650 (futuro)
-- Use um módulo carregador TP4056 com proteção.
-- Conecte a saída do módulo ao pino `5V` do XIAO (via diodo para evitar retroalimentação).
-- O XIAO suporta entrada de 3.7V a 5.5V no pino `BAT` (se disponível) ou via `5V`.
+## Alimentacao
 
-### Medição de bateria (futuro)
-Use um divisor resistivo no pino ADC (GPIO8) para medir a tensão da bateria e enviar no heartbeat.
+### Opcao 1: USB-C 5V (recomendada)
 
-## Montagem Física
+Conecte em fonte estavel de 5V/2A.
 
-- O XIAO Sense já possui a câmera soldada.
-- Posicione o dispositivo em um ângulo que cubra a cama e o chão ao redor.
-- Fixe com fita dupla-face ou suporte impresso em 3D (modelo disponível em breve).
+### Opcao 2: Power bank
 
-## Cuidados
+Use power bank que mantenha saida ativa com baixo consumo.
 
-- Evite luz solar direta na lente.
-- Mantenha o dispositivo em local seco e ventilado.
+### Opcao 3: bateria (futuro)
+
+Pode ser implementado com circuito de carga/protecao e monitoramento via ADC.
+
+## Montagem fisica
+
+- Posicione a camera para cobrir cama e area de risco de queda.
+- Evite contraluz forte e reflexos diretos.
+- Prenda o modulo para minimizar vibracao/trepidacao.
 

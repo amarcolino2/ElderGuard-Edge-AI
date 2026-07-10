@@ -1,334 +1,213 @@
-Sistema de monitoramento assistivo para idosos usando Edge AI e TinyML em ESP32-S3 Sense
+# Sistema de monitoramento assistivo para idosos usando Edge AI e TinyML em ESP32-S3 Sense
 
-⚠️ Aviso: Este projeto é um protótipo tecnológico/open source para estudo e experimentação. Não é um dispositivo médico certificado e não deve ser utilizado como único meio de monitoramento de saúde ou segurança.
+Aviso: Este projeto e um prototipo tecnologico/open source para estudo e experimentacao. Nao e um dispositivo medico certificado e nao deve ser utilizado como unico meio de monitoramento de saude ou seguranca.
 
-📌 Índice
-Visão Geral
+## Visao Geral
 
-Arquitetura
+ElderGuard Edge AI e um sistema de monitoramento baseado em visao computacional e TinyML para reconhecer estados relacionados ao uso da cama e detectar eventos como queda, tentativa de levantar e imobilidade prolongada.
 
-Hardware
+Estados visuais monitorados:
 
-Modelo de IA
+- lying
+- sitting
+- standing
+- on_floor
+- empty_bed
 
-Firmware
+Eventos inferidos pela maquina de estados (firmware):
 
-Configuração do Telegram
+- Possivel queda detectada
+- Pessoa imovel no chao por tempo prolongado
+- Tentativa de levantar
+- Pessoa fora da cama por periodo incomum
 
-Monitoramento (Heartbeat)
+## Status Atual da Implementacao
 
-Dataset e Treinamento
+O firmware foi estruturado para dois modos de classificacao:
 
-Instalação e Uso
+- Modo fake (padrao): usado para testes de rotina sem depender de pipeline TinyML completo.
+- Modo real: ponto de entrada preparado para usar modelo embutido em `model.tflite.h`.
 
-Estrutura do Repositório
+O projeto tambem possui:
 
-Contribuição
+- Configuracao persistente em SPIFFS (`/config.json`)
+- Camera wrapper robusto para Seeed XIAO ESP32S3 Sense (OV2640)
+- Heartbeat HTTP (uptime/rssi/version)
+- OTA via HTTPUpdate
+- Alerta Telegram com mensagem e envio binario de JPEG
 
-Licença
+## Arquitetura (resumo)
 
-🧠 Visão Geral
-ElderGuard Edge AI é um sistema de monitoramento baseado em visão computacional e TinyML que reconhece estados relacionados ao uso de uma cama e detecta eventos como quedas, tentativas de levantar e imobilidade prolongada.
-
-O dispositivo executa um modelo de classificação de imagens localmente no microcontrolador Seeed Studio XIAO ESP32S3 Sense, enviando alertas via Telegram Bot e mantendo um heartbeat para monitoramento de disponibilidade.
-
-Estados visuais detectados:
-lying – pessoa deitada/dormindo
-
-sitting – pessoa sentada
-
-standing – pessoa em pé
-
-on_floor – pessoa no chão
-
-empty_bed – cama vazia
-
-Eventos inferidos pela máquina de estados:
-Dormindo normalmente
-
-Acordou
-
-Sentou na cama
-
-Tentando levantar
-
-Saiu da cama
-
-Fora da cama por tempo incomum
-
-Queda detectada
-
-Permaneceu imóvel após queda
-
-Tentativas repetidas de levantar sem sucesso
-
-🏗️ Arquitetura
-
+```mermaid
 graph TD
-    A[Seeed XIAO ESP32S3 Sense] --> B[Câmera integrada]
-    B --> C[TinyML Model - TensorFlow Lite]
-    C --> D[Firmware - Máquina de Estados]
-    D --> E[Eventos]
+    A[Seeed XIAO ESP32S3 Sense] --> B[Camera OV2640]
+    B --> C[Classifier Fake ou Pipeline Real]
+    C --> D[State Machine]
+    D --> E[Eventos Criticos]
     E --> F[Telegram Bot]
-    E --> G[Better Stack / UptimeRobot]
-    
-    H[Wi-Fi] --> A
-    I[USB-C 5V / Bateria] --> A
+    E --> G[Heartbeat HTTP]
+    H[Config SPIFFS] --> D
+    H --> F
+    H --> G
+    H --> I[OTA]
+```
 
-🔧 Hardware
-Componente	Especificação
-Microcontrolador	Seeed Studio XIAO ESP32S3 Sense
-Câmera	OV2640 (integrada)
-Conectividade	Wi-Fi 802.11 b/g/n
-Alimentação	USB-C 5V ou bateria externa
-Opções de energia:
-Fonte USB-C 5V (recomendada para protótipo)
+## Hardware
 
-Power Bank portátil
+- Microcontrolador: Seeed Studio XIAO ESP32S3 Sense
+- Camera: OV2640 integrada
+- Conectividade: Wi-Fi 802.11 b/g/n
+- Alimentacao: USB-C 5V ou bateria externa
 
-Bateria 18650 com circuito de carga (futuro)
+## Firmware
 
-🧪 Modelo de IA
-Classificação de imagens com 5 classes:
+Desenvolvido com Arduino Framework (PlatformIO).
 
-lying
+Bibliotecas principais:
 
-sitting
+- `WiFi.h`
+- `esp_camera.h`
+- `UniversalTelegramBot.h`
+- `ArduinoJson.h`
+- `HTTPUpdate.h` (OTA)
+- `SPIFFS.h`
 
-standing
+Funcionalidades implementadas:
 
-on_floor
+- Conexao Wi-Fi automatica com watchdog de reconexao
+- Captura com troca dinamica de resolucao (inferencia/foto)
+- Maquina de estados com historico e regras temporais
+- Alertas Telegram com retry
+- Heartbeat periodico
+- OTA periodico
+- Configuracao persistente em SPIFFS
 
-empty_bed
+## Fake x Real: como alternar o classificador
 
-Características:
+Edite `firmware/src/config.h`:
 
-Modelo: TensorFlow Lite Micro (quantizado INT8)
+1. Modo teste (padrao)
 
-Tamanho: < 200KB
+```cpp
+#define USE_FAKE_CLASSIFIER 1
+// #define USE_REAL_INFERENCE_PIPELINE 1
+```
 
-Precisão alvo: > 85% (em dados de validação)
+2. Modo inferencia real (modelo embutido)
 
-Ferramenta de treinamento: Edge Impulse Studio
+```cpp
+// #define USE_FAKE_CLASSIFIER 1
+#define USE_REAL_INFERENCE_PIPELINE 1
+```
 
-Lógica temporal (firmware):
-A IA apenas classifica o frame atual. O firmware mantém um histórico e aplica uma máquina de estados finitos para inferir eventos complexos.
+Observacao: no modo real, o ponto de entrada esta preparado e o proximo passo e ligar preprocessamento + interpreter TensorFlow Lite Micro + pos-processamento para mapear saida em `VisualState`.
 
-Exemplos:
+## Configuracao persistente (SPIFFS)
 
-lying → sitting → standing → tentativa de levantar
+O firmware usa `firmware/src/config_store.*` para manter configuracoes em `/config.json`.
 
-standing → on_floor → queda
+Campos persistidos:
 
-on_floor por mais de X segundos → possível emergência
+- `wifi_ssid`
+- `wifi_password`
+- `bot_token`
+- `chat_id`
+- `heartbeat_url`
+- `ota_url`
 
-📦 Firmware
-Desenvolvido em Arduino Framework (compatível com PlatformIO e Arduino IDE).
+Fluxo:
 
-Bibliotecas utilizadas:
-WiFi.h
+- No boot, tenta carregar do SPIFFS.
+- Se arquivo nao existir ou estiver invalido, grava defaults definidos em `config.h`.
 
-esp_camera.h
+## Configuracao da camera (XIAO ESP32S3 Sense)
 
-UniversalTelegramBot.h
+O wrapper em `firmware/src/camera_wrapper.cpp` esta com:
 
-ArduinoJson.h
+- Pinagem explicita da placa
+- Configuracao de `camera_config_t` completa
+- Ajustes basicos de sensor
+- Retry de captura para reduzir falhas intermitentes
 
-ESP32httpUpdate.h (OTA)
+Se houver variacao de revisao de hardware, ajuste os pinos no proprio arquivo.
 
-Funcionalidades:
-Conexão Wi-Fi automática
+## Configuracao do Telegram
 
-Captura e redimensionamento da imagem
+1. Crie um bot via `@BotFather`.
+2. Obtenha seu `chat_id` (ex.: `@userinfobot`).
+3. Configure os valores padrao em `firmware/src/config.h` ou atualize `/config.json` em SPIFFS.
 
-Inferência do modelo .tflite
+## Monitoramento (Heartbeat)
 
-Máquina de estados com temporizadores
+A cada intervalo definido, o firmware envia GET para a URL configurada com:
 
-Envio de alertas com imagem JPEG via Telegram
+- `uptime`
+- `rssi`
+- `version`
 
-Heartbeat HTTP para Better Stack/UptimeRobot
+## Instalacao e Uso (PlatformIO)
 
-OTA básico para atualizações
-
-Salvamento de configuração em SPIFFS
-
-🤖 Configuração do Telegram
-Crie um bot no Telegram via @BotFather e obtenha o token.
-
-Obtenha seu chat ID (pode usar o bot @userinfobot).
-
-Configure as credenciais no arquivo config.h.
-
-Exemplo de alerta:
-text
-🚨 ALERTA
-
-Possível queda detectada
-Quarto: 01
-Confiança: 95%
-A mensagem é acompanhada pela imagem JPEG capturada.
-
-📡 Monitoramento (Heartbeat)
-A cada 1 minuto, o dispositivo envia uma requisição HTTP GET para:
-
-Better Stack (Uptime monitor) – via endpoint de heartbeat
-
-UptimeRobot – via ping simples
-
-Payload incluído (via query string ou corpo):
-
-uptime (em segundos)
-
-rssi (dBm)
-
-version (firmware)
-
-battery (se disponível)
-
-Se o heartbeat falhar por mais de 5 minutos, a ferramenta de monitoramento gera um alerta de "Dispositivo offline".
-
-📊 Dataset e Treinamento
-Datasets recomendados (públicos e acadêmicos):
-UP-Fall Detection Dataset
-
-UR Fall Dataset
-
-Le2i Fall Detection Dataset
-
-COCO Dataset (para extrair pessoas)
-
-MPII Human Pose Dataset
-
-Script de preparação: tools/dataset_prepare.py
-O script automatiza:
-
-Extração de frames de vídeos
-
-Redimensionamento para 96x96 (ou tamanho compatível)
-
-Organização em pastas train/, validation/, test/
-
-Estrutura de classes:
-
-text
-dataset/
-  train/
-    lying/
-    sitting/
-    standing/
-    on_floor/
-    empty_bed/
-  validation/
-    ...
-  test/
-    ...
-Treinamento no Edge Impulse:
-Crie uma conta no Edge Impulse
-
-Crie um novo projeto
-
-Faça upload das imagens (ou use o script para gerar um arquivo .zip)
-
-Defina as 5 classes
-
-Configure Image Classification como bloco de processamento
-
-Use Transfer Learning (MobileNetV1 ou similar) e treine
-
-Quantize para INT8 e exporte como Arduino library (TensorFlow Lite Micro)
-
-📥 Instalação e Uso
-Pré-requisitos:
-Arduino IDE (>= 1.8.19) ou PlatformIO
-
-Placa Seeed XIAO ESP32S3 Sense configurada
-
-Cabo USB-C para upload
-
-Passos:
-Clone o repositório:
-
-bash
+```bash
 git clone https://github.com/seu-usuario/elderguard-edge-ai.git
-cd elderguard-edge-ai
-Prepare o dataset e treine o modelo (conforme documentação em docs/training.md)
+cd elderguard-edge-ai/firmware
+platformio run
+platformio run --target upload
+```
 
-Instale as bibliotecas no Arduino IDE:
+Monitor serial:
 
-ESP32 (via Gerenciador de Placas)
+```bash
+platformio device monitor -b 115200
+```
 
-UniversalTelegramBot (por Brian Lough)
+## Estrutura do Repositorio (resumo atual)
 
-ArduinoJson (por Benoit Blanchon)
-
-Seeed_Arduino_Camera (ou esp32-camera)
-
-Configure as credenciais no arquivo firmware/src/config.h:
-
-cpp
-#define WIFI_SSID     "sua-rede"
-#define WIFI_PASSWORD "senha"
-#define BOT_TOKEN     "seu-token-telegram"
-#define CHAT_ID       "seu-chat-id"
-#define HEARTBEAT_URL "https://betterstack.com/..." // opcional
-Copie o modelo exportado (arquivo .tflite e .h) para a pasta firmware/src/.
-
-Compile e faça upload para o ESP32.
-
-Monitore via Serial Monitor (115200 bps).
-
-📁 Estrutura do Repositório
-text
+```text
 ElderGuard-Edge-AI/
-├── README.md                     # Este arquivo
-├── LICENSE
-├── .gitignore
+├── README.md
 ├── docs/
-│   ├── architecture.md           # Detalhamento da arquitetura
-│   ├── dataset.md                # Guia de datasets e preparação
-│   ├── training.md               # Passo a passo no Edge Impulse
-│   └── hardware.md               # Esquema elétrico e montagem
 ├── firmware/
-│   ├── platformio.ini            # (se usar PlatformIO)
+│   ├── platformio.ini
 │   └── src/
-│       ├── ElderGuard.ino        # Código principal
-│       ├── config.h              # Credenciais e configurações
+│       ├── main.cpp
+│       ├── config.h
+│       ├── config_store.h
+│       ├── config_store.cpp
 │       ├── wifi_manager.h
+│       ├── wifi_manager.cpp
 │       ├── camera_wrapper.h
-│       ├── classifier.h          # Interface com o modelo TFLite
-│       ├── state_machine.h       # Máquina de estados
+│       ├── camera_wrapper.cpp
+│       ├── classifier.h
+│       ├── classifier.cpp
+│       ├── state_machine.h
+│       ├── state_machine.cpp
 │       ├── telegram_notifier.h
+│       ├── telegram_notifier.cpp
 │       ├── heartbeat.h
+│       ├── heartbeat.cpp
 │       ├── ota_update.h
-│       └── model.tflite.h        # Modelo quantizado (gerado pelo Edge Impulse)
-├── tools/
-│   ├── dataset_prepare.py        # Script para preparar o dataset
-│   └── requirements.txt          # Dependências Python
-└── examples/
-    └── telegram_message.json     # Exemplo de mensagem de alerta
-🤝 Contribuição
-Contribuições são bem-vindas! Sinta-se à vontade para abrir issues e pull requests.
+│       ├── ota_update.cpp
+│       └── model.tflite.h
+└── tools/
+```
 
-Antes de contribuir:
+## Interoperabilidade e evolucoes futuras
 
-Leia as diretrizes de código.
+O firmware ja expoe gancho para eventos externos:
 
-Certifique-se de que seu modelo e firmware funcionam em hardware real.
+- `onExternalEvent(const String& eventType, float confidence)`
 
-Documente quaisquer alterações.
+Possiveis integracoes:
 
-📄 Licença
-Este projeto é licenciado sob a MIT License – veja o arquivo LICENSE para detalhes.
+- Radar mmWave
+- Wearables
+- Botao SOS
+- Home Assistant (webhook)
 
-🏁 Próximos Passos
-Suporte a bateria 18650 com monitoramento de carga
+## Contribuicao
 
-Modo de baixo consumo para operação por bateria
+Contribuicoes sao bem-vindas via issues e pull requests.
 
-Reconhecimento de múltiplas pessoas (futuro)
+## Licenca
 
-Integração com Home Assistant (via webhook)
-
-
-Desenvolvido com ❤️ para fins educacionais e de pesquisa.    
+Este projeto e licenciado sob MIT. Veja o arquivo `LICENSE` para detalhes.

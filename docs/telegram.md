@@ -11,8 +11,10 @@ Ele faz uma requisição POST para: https://api.telegram.org/bot<SEU_TOKEN>/send
 
 O servidor do Telegram recebe essa requisição e entrega a mensagem diretamente no seu aplicativo (no celular/PC), porque você configurou o CHAT_ID (que é o identificador único da sua conta ou do seu grupo).
 
-📝 Passo a passo (Recapitulando e detalhando)
-1. Criar o Bot e pegar o Token
+## 📝 Passo a passo (Recapitulando e detalhando)
+
+### 1. Criar o Bot e pegar o Token
+
 Abra o Telegram e procure por @BotFather.
 
 Envie o comando: /newbot
@@ -24,7 +26,8 @@ O BotFather vai te devolver uma mensagem com o Token. É algo como:
 
 Guarde esse token – ele vai no config.h.
 
-2. Pegar o seu Chat ID
+### 2. Pegar o seu Chat ID
+
 Abra o Telegram e procure por @userinfobot.
 
 Inicie uma conversa com ele (clique em "Start" ou envie qualquer mensagem).
@@ -33,13 +36,15 @@ Ele vai te responder com seu ID. É um número puro, tipo: 987654321.
 
 Guarde esse número – ele vai no config.h.
 
-3. Configurar no código (config.h)
+### 3. Configurar no código (config.h)
 
 cpp
 // config.h
 #define BOT_TOKEN     "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
 #define CHAT_ID       "987654321"
-4. Como a mensagem chega até você (Recebimento)
+
+### 4. Como a mensagem chega até você (Recebimento)
+
 Quando o ESP32 executar a função que te mostrei no código:
 
 cpp
@@ -57,7 +62,8 @@ void send_telegram_alert(const String& message, bool withPhoto) {
 }
 Resultado prático: Assim que o ESP32 capturar a imagem e chamar essa função, instantaneamente você verá a notificação pop-up no seu celular, exatamente como se fosse uma mensagem de um contato normal.
 
-⚠️ Pontos de atenção para você não errar:
+#### ⚠️ Pontos de atenção para você não errar:
+
 O Bot precisa ser iniciado: Você precisa mandar uma mensagem qualquer (ex: "/start") para o seu próprio bot (o que você criou no @BotFather) antes de tentar receber mensagens. Se o bot nunca foi iniciado por você, o Telegram bloqueia o envio.
 
 Dica: Abra o chat com @elderguard_alert_bot, clique em "Start", e pronto.
@@ -68,7 +74,7 @@ cpp
 client.setInsecure(); // Coloque isso antes de usar o bot
 Mensagem com imagem: Para o envio de foto funcionar, o buffer da câmera (fb->buf) deve estar em formato JPEG. O código de inicialização da câmera que te passei já está configurado com pixel_format = PIXFORMAT_JPEG, então está tudo certo.
 
-📱 Exemplo de como chega no seu celular
+### 📱 Exemplo de como chega no seu celular
 Quando o evento de queda for detectado, você receberá isso no Telegram:
 
 🚨 ALERTA
